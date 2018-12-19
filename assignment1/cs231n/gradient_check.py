@@ -107,6 +107,10 @@ def grad_check_sparse(f, x, analytic_grad, num_checks=10, h=1e-5):
   """
   sample a few random elements and only return numerical
   in this dimensions.
+
+  - f: A lambda for analytic the gradient 
+  - x: W matrix
+  - analytic_grad: gradient that calculate from analytic
   """
 
   for i in range(num_checks):
