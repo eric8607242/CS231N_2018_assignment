@@ -79,6 +79,7 @@ def svm_loss_vectorized(W, X, y, reg):
   # result in loss.                                                           #
   #############################################################################
   scores = X.dot(W)
+  # get a ndarray the size if num_train * 1 which is the correct class score value
   yi_scores = scores[np.arange(scores.shape[0]), y] 
   margins = np.maximum(0, scores - np.matrix(yi_scores).T + delta)
   margins[np.arange(num_train), y] = 0
