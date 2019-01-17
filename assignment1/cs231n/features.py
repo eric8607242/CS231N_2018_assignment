@@ -23,6 +23,7 @@ def extract_features(imgs, feature_fns, verbose=False):
   An array of shape (N, F_1 + ... + F_k) where each column is the concatenation
   of all features for a single image.
   """
+  # get the image dimension
   num_images = imgs.shape[0]
   if num_images == 0:
     return np.array([])
@@ -41,11 +42,12 @@ def extract_features(imgs, feature_fns, verbose=False):
   total_feature_dim = sum(feature_dims)
   imgs_features = np.zeros((num_images, total_feature_dim))
   imgs_features[0] = np.hstack(first_image_features).T
-
   # Extract features for the rest of the images.
   for i in range(1, num_images):
     idx = 0
     for feature_fn, feature_dim in zip(feature_fns, feature_dims):
+      # feature_dim is 144 and 10,144 is for hog_feature 4*4*9 = 144(4 cells ,9 orientations)
+      # and 10 is for color histogram which divide color into 10 bins
       next_idx = idx + feature_dim
       imgs_features[i, idx:next_idx] = feature_fn(imgs[i].squeeze())
       idx = next_idx
@@ -91,22 +93,26 @@ def hog_feature(im):
     image = rgb2gray(im)
   else:
     image = np.at_least_2d(im)
-
   sx, sy = image.shape # image size
   orientations = 9 # number of gradient bins
   cx, cy = (8, 8) # pixels per cell
-
+ 
   gx = np.zeros(image.shape)
   gy = np.zeros(image.shape)
   gx[:, :-1] = np.diff(image, n=1, axis=1) # compute gradient on x-direction
   gy[:-1, :] = np.diff(image, n=1, axis=0) # compute gradient on y-direction
   grad_mag = np.sqrt(gx ** 2 + gy ** 2) # gradient magnitude
   grad_ori = np.arctan2(gy, (gx + 1e-15)) * (180 / np.pi) + 90 # gradient orientation
-
+  
+  # 32/8 = 4, there are 4 cells in the x and y
   n_cellsx = int(np.floor(sx / cx))  # number of cells in x
   n_cellsy = int(np.floor(sy / cy))  # number of cells in y
   # compute orientations integral images
+  # orientation_histogram is used to calculate each cell orientations,
+  # so its shape is (4, 4, 9)
   orientation_histogram = np.zeros((n_cellsx, n_cellsy, orientations))
+  
+  # go through the nine orientations to determine the cell is belong to whinch orientations
   for i in range(orientations):
     # create new integral image for this orientation
     # isolate orientations in this range
@@ -116,9 +122,10 @@ def hog_feature(im):
                         temp_ori, 0)
     # select magnitudes for those orientations
     cond2 = temp_ori > 0
-    temp_mag = np.where(cond2, grad_mag, 0)
+    temp_mag = np.where(cond2, grad_mag, 0) # if con2 is bigger than 0, temp_mag is the grad_mag
     orientation_histogram[:,:,i] = uniform_filter(temp_mag, size=(cx, cy))[int(cx/2)::cx, int(cy/2)::cy].T
   
+  # ravel() return a contiguous flattened array
   return orientation_histogram.ravel()
 
 
@@ -139,6 +146,7 @@ def color_histogram_hsv(im, nbin=10, xmin=0, xmax=255, normalized=True):
   """
   ndim = im.ndim
   bins = np.linspace(xmin, xmax, nbin+1)
+  # matplotlib need the rgb is ranged 0 to 1 , so we need to /xmax
   hsv = matplotlib.colors.rgb_to_hsv(im/xmax) * xmax
   imhist, bin_edges = np.histogram(hsv[:,:,0], bins=bins, density=normalized)
   imhist = imhist * np.diff(bin_edges)
