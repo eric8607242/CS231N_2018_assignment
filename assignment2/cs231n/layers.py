@@ -25,7 +25,10 @@ def affine_forward(x, w, b):
     # TODO: Implement the affine forward pass. Store the result in out. You   #
     # will need to reshape the input into rows.                               #
     ###########################################################################
-    pass
+    shaped_x = np.reshape(x, (x.shape[0], -1))
+
+    out = shaped_x.dot(w)+b
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -54,7 +57,14 @@ def affine_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the affine backward pass.                               #
     ###########################################################################
-    pass
+    x_shape = x.shape
+    x = np.reshape(x, (x.shape[0], -1))
+    dx = dout.dot(w.T)
+    dx = np.reshape(dx, x_shape)
+
+    dw = x.T.dot(dout)
+    # plus each row to one row
+    db = np.sum(dout, axis=0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -76,7 +86,7 @@ def relu_forward(x):
     ###########################################################################
     # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
-    pass
+    out = np.maximum(x, 0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -99,7 +109,13 @@ def relu_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the ReLU backward pass.                                 #
     ###########################################################################
-    pass
+    # because relu is mask the input x to generate output dout ,so in backprop
+    # we need to use the mask that x used to dout
+    # why we can not use dout>0 here(x sould be the same with out)
+    # because here dout is not forward from x but random.
+    drelu = np.zeros(dout.shape)
+    drelu[x > 0] = 1
+    dx = dout * drelu
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
