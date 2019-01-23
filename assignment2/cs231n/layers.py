@@ -697,12 +697,16 @@ def svm_loss(x, y):
     """
     N = x.shape[0]
     correct_class_scores = x[np.arange(N), y]
+    # margins is the scores diff between error score and correct score ,if correct score
+    # is bigger than error score than margin is 0 
     margins = np.maximum(0, x - correct_class_scores[:, np.newaxis] + 1.0)
     margins[np.arange(N), y] = 0
     loss = np.sum(margins) / N
+    # it is just gradient of dx(loss) if u need dw, u should mulitply dx(loss) and x(input)
     num_pos = np.sum(margins > 0, axis=1)
     dx = np.zeros_like(x)
     dx[margins > 0] = 1
+    # if the loss is bigger than 0, the Wj is influence the loss, so we need to minus the margin
     dx[np.arange(N), y] -= num_pos
     dx /= N
     return loss, dx
@@ -722,12 +726,14 @@ def softmax_loss(x, y):
     - loss: Scalar giving the loss
     - dx: Gradient of the loss with respect to x
     """
+    N = x.shape[0]
+
     shifted_logits = x - np.max(x, axis=1, keepdims=True)
     Z = np.sum(np.exp(shifted_logits), axis=1, keepdims=True)
     log_probs = shifted_logits - np.log(Z)
-    probs = np.exp(log_probs)
-    N = x.shape[0]
     loss = -np.sum(log_probs[np.arange(N), y]) / N
+
+    probs = np.exp(log_probs)
     dx = probs.copy()
     dx[np.arange(N), y] -= 1
     dx /= N

@@ -183,6 +183,8 @@ class Solver(object):
         self.loss_history.append(loss)
 
         # Perform a parameter update
+        # via model.params get the weight and bias value
+        # use gradient to update weight and bias
         for p, w in self.model.params.items():
             dw = grads[p]
             config = self.optim_configs[p]
@@ -271,7 +273,7 @@ class Solver(object):
                        t + 1, num_iterations, self.loss_history[-1]))
 
             # At the end of every epoch, increment the epoch counter and decay
-            # the learning rate.
+            # the learning rate of each parameter
             epoch_end = (t + 1) % iterations_per_epoch == 0
             if epoch_end:
                 self.epoch += 1
