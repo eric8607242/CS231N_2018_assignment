@@ -59,13 +59,17 @@ def sgd_momentum(w, dw, config=None):
     config.setdefault('learning_rate', 1e-2)
     config.setdefault('momentum', 0.9)
     v = config.get('velocity', np.zeros_like(w))
+    
+    mu = config['momentum']
+    learning_rate = config['learning_rate']
 
     next_w = None
     ###########################################################################
     # TODO: Implement the momentum update formula. Store the updated value in #
     # the next_w variable. You should also use and update the velocity v.     #
     ###########################################################################
-    pass
+    v = mu*v - learning_rate*dw
+    next_w = w + v
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -93,13 +97,21 @@ def rmsprop(w, dw, config=None):
     config.setdefault('epsilon', 1e-8)
     config.setdefault('cache', np.zeros_like(w))
 
+    learning_rate = config['learning_rate']
+    decay_rate = config['decay_rate']
+    epsilon = config['epsilon']
+    cache = config['cache']
+
     next_w = None
     ###########################################################################
     # TODO: Implement the RMSprop update formula, storing the next value of w #
     # in the next_w variable. Don't forget to update cache value stored in    #
     # config['cache'].                                                        #
     ###########################################################################
-    pass
+    cache = decay_rate*cache + (1-decay_rate)* dw**2
+    next_w = w - learning_rate*dw/(np.sqrt(cache)+epsilon)
+
+    config['cache'] = cache
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -130,6 +142,14 @@ def adam(w, dw, config=None):
     config.setdefault('v', np.zeros_like(w))
     config.setdefault('t', 0)
 
+    learning_rate = config['learning_rate']
+    beta1 = config['beta1']
+    beta2 = config['beta2']
+    epsilon = config['epsilon']
+    m = config['m']
+    v = config['v']
+    t = config['t']+1
+
     next_w = None
     ###########################################################################
     # TODO: Implement the Adam update formula, storing the next value of w in #
@@ -139,7 +159,22 @@ def adam(w, dw, config=None):
     # NOTE: In order to match the reference output, please modify t _before_  #
     # using it in any calculations.                                           #
     ###########################################################################
-    pass
+    # the reason to used bias correction(t) is that it can reduce the effect of 
+    # initialization to m and v(initial set to 0), so if you don't use bias correction
+    # I think it is ok, just become slower.
+
+    # for example, at the begin, the m0 is set to 0,so the m1 is beta1*0 + (1-beta1)*dw
+    # the dw just 0.1 percent, so if we use bias correction the mt1 will become m1/(1-beta1**1)
+    # that means mt1 = m1*10, it let the influence of initial m0 become 0
+    m = beta1*m + (1-beta1)*dw
+    mt = m/(1-beta1**t)
+    v = beta2*v + (1-beta2)*(dw**2)
+    vt = v/(1-beta2**t)
+    next_w = w -learning_rate*mt/(np.sqrt(vt)+epsilon)
+
+    config['m'] = m
+    config['v'] = v
+    config['t'] = t
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
