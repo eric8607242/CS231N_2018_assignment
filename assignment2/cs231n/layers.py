@@ -191,7 +191,25 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
         # might prove to be helpful.                                          #
         #######################################################################
-        pass
+        sample_mean = np.mean(x, axis=0)
+        sample_variance = np.var(x, axis=0)
+        standard_d = np.sqrt(sample_variance+eps)
+        
+
+        normalization = (x-sample_mean)/standard_d
+        out = normalization*gamma + beta
+
+        running_mean = momentum * running_mean + (1-momentum) * sample_mean
+        running_var = momentum * running_var + (1-momentum) * sample_variance
+
+        cache = {
+              'normalization':normalization,
+              'standard_d':standard_d,
+              'var':sample_variance,
+              'eps':eps,
+              'x_mean':x-sample_mean,
+              'gamma':gamma
+            }
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -202,7 +220,10 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        running_standard_d = np.sqrt(running_var+eps)
+        
+        x = (x-running_mean)/running_standard_d
+        out = x*gamma + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -240,7 +261,38 @@ def batchnorm_backward(dout, cache):
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+    N = dout.shape[0]
+
+    # (beta) out = x*gamma + beta
+    dbeta = np.sum(dout, axis=0)
+    dbeta_layer = dout
+    
+    # (gamma) out = normalization*gamma + beta
+    dgamma = np.sum(cache['normalization']*dbeta_layer, axis=0)
+    dgamma_x = dbeta_layer*cache['gamma']
+
+    # (1/sta_d) normalization = (x-mean)/sta_d
+    distan_d = np.sum(dgamma_x*cache['x_mean'], axis=0)
+    dx_mean = dgamma_x/cache['standard_d']
+
+    # (sta_d) 1/sta_d
+    dstan_d = distan_d * (-1/(cache['standard_d']**2))
+    # (var+eps) sta_d = sqrt(var+eps)
+    dvar = 0.5*(1/np.sqrt(cache['var']+cache['eps']))*dstan_d
+    
+    # (((x-mean)^2)/n) var = sum((x-mean)^2)/n
+    dvar_sum = (np.ones_like(dout)*dvar)/N
+    dx_mean_pow = 2*cache['x_mean']*dvar_sum
+
+    # (x-mean) used in two place
+    # 1) variance -> (x-mean)^2
+    # 2) numerator -> (x-mean)
+    dmean = -1*(np.sum(dx_mean+dx_mean_pow, axis=0))
+    dx = (dx_mean + dx_mean_pow)
+
+    # (x) mean = sum(x)/n
+    dx += np.ones_like(dout)*dmean/N 
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
