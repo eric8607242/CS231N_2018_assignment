@@ -262,6 +262,7 @@ class FullyConnectedNet(object):
         relu_cache = {}
         bn_cache = {}
         ln_cache = {}
+        drop_cache = {}
 
         layers = X
         for i in range(self.num_layers-1):
@@ -281,6 +282,8 @@ class FullyConnectedNet(object):
                 layers, ln_cache[weight_num] = layernorm_forward(layers, gamma, beta, self.ln_params[i])
 
             layers, relu_cache[weight_num] = relu_forward(layers)
+            if self.use_dropout:
+                layers, drop_cache[weight_num]  = dropout_forward(layers, self.dropout_param)
 
         scores, final_cache = affine_forward(layers, self.params['W'+str(self.num_layers)], self.params['b'+str(self.num_layers)])
             
@@ -323,7 +326,11 @@ class FullyConnectedNet(object):
         # backward for each weight
         for i in reversed(range(self.num_layers-1)):
             weight_num = str(i+1)
-            dout = relu_backward(dout[dx], relu_cache[weight_num])
+            dout = dout[dx]
+
+            if self.use_dropout:
+                dout = dropout_backward(dout, drop_cache[weight_num])
+            dout = relu_backward(dout, relu_cache[weight_num])
             if self.normalization=='batchnorm':
                 dout, dgamma, dbeta = batchnorm_backward_alt(dout, bn_cache[weight_num])
                 grads['gamma'+weight_num], grads['beta'+weight_num] = dgamma, dbeta
