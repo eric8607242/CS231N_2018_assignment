@@ -539,7 +539,7 @@ def conv_forward_naive(x, w, b, conv_param):
     The input consists of N data points, each with C channels, height H and
 
     Input:
-    - x: Input data of shape (N, C, H, W)
+    - x: Input data of shape (N, C, H, W) 
     - w: Filter weights of shape (F, C, HH, WW)
     - b: Biases, of shape (F,)
     - conv_param: A dictionary with the following keys:
@@ -563,7 +563,25 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    pad = conv_param['pad']
+    stride = conv_param['stride']
+
+    N, C, x_H, x_W = x.shape
+    F, C, weight_H, weight_W = w.shape # F is filters nums
+   
+    out_H = int(1 + (x_H+2*pad-weight_H)/stride)
+    out_W = int(1 + (x_W+2*pad-weight_W)/stride)
+
+    out = np.zeros((N, F, out_H, out_W))
+
+    pad_array = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+
+    for n in range(N):
+        for f in range(F):
+            for n_h in range(int(out_H)):
+                for n_w in range(int(out_W)):
+                    region = pad_array[n, :, n_h*stride:n_h*stride+weight_H, n_w*stride:n_w*stride+weight_W]
+                    out[n][f][n_h][n_w] = np.sum(region*w[f]) + b[f]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -588,7 +606,38 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x, w, b, conv_param = cache
+
+    pad = conv_param['pad']
+    stride = conv_param['stride']
+
+    N, C, x_H, x_W = x.shape
+    F, C, weight_H, weight_W = w.shape
+
+    dx = np.zeros(x.shape)
+    dw = np.zeros(w.shape)
+    db = np.zeros(b.shape)
+
+    N, F, out_H, out_W = dout.shape
+    pad_array = np.pad(x, ((0 ,0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+
+    # db. Each filter of dout is contributed by different filter of bias.
+    # So db of each filter is sumed up each filter of dout.
+    # Ex. out = w*x+b => db = 1. In chain rule, dout * db = dout * 1(sum) = db/L
+    for f in range(F):
+        db[f] = np.sum(dout[:,f])
+
+    # dw. Each filter of out is composed of each filter of weight. Every weight element
+    # influenced the apperance of out.So we can sum up every value that composed by out 
+    # element * a as big as weight region of x to get the each filter of dw.
+    # Ex. out = w*x+b => dw/out = x. In chain rule, dout * x = dw/L
+    for n in range(N):
+        for f in range(F):
+            for n_h in range(out_H):
+                for n_w in range(out_W):
+                    region = pad_array[n, :, n_h*stride:n_h*stride+weight_H, n_w*stride:n_w*stride+weight_W]
+                    dw[f] += region * dout[n, f, n_h, n_w]
+                    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
