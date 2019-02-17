@@ -620,6 +620,7 @@ def conv_backward_naive(dout, cache):
 
     N, F, out_H, out_W = dout.shape
     pad_array = np.pad(x, ((0 ,0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+    dpad_array = np.zeros(pad_array.shape)
 
     # db. Each filter of dout is contributed by different filter of bias.
     # So db of each filter is sumed up each filter of dout.
@@ -629,7 +630,8 @@ def conv_backward_naive(dout, cache):
 
     # dw. Each filter of out is composed of each filter of weight. Every weight element
     # influenced the apperance of out.So we can sum up every value that composed by out 
-    # element * a as big as weight region of x to get the each filter of dw.
+    # element * a region of x which is as big as the size of weight to get the each 
+    # filter of dw.
     # Ex. out = w*x+b => dw/out = x. In chain rule, dout * x = dw/L
     for n in range(N):
         for f in range(F):
@@ -638,6 +640,15 @@ def conv_backward_naive(dout, cache):
                     region = pad_array[n, :, n_h*stride:n_h*stride+weight_H, n_w*stride:n_w*stride+weight_W]
                     dw[f] += region * dout[n, f, n_h, n_w]
                     
+    # dx. X multiply each filter of weight to get the out. A small region of x with 
+    # weight get a element of out.So we let a element of out to multiply by weight,
+    # we can get a small region of dx which composed the element of out.But each 
+    # element of x can compose many element of out, so we need to sum up the each 
+    # small region to make the total dx.
+    # Ex. out = w*x+b => dx/out = weight. In chain rule, dout * weight = dx/L
+                    dpad_array[n, :, n_h*stride:n_h*stride+weight_H, n_w*stride:n_w*stride+weight_W] += w[f] * dout[n, f, n_h, n_w]
+                    
+    dx = dpad_array[:, :, pad:pad+x_H, pad:pad+x_W]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -667,7 +678,28 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max-pooling forward pass                            #
     ###########################################################################
-    pass
+    pool_h = pool_param['pool_height']
+    pool_w = pool_param['pool_width']
+    stride = pool_param['stride']
+    
+    N, C, H, W = x.shape
+
+    out_H = 1 + int((H-pool_h)/stride)
+    out_W = 1 + int((W-pool_w)/stride)
+
+    out = np.zeros([N, C, out_H, out_W])
+
+    # pooling. we have to get the max value in each filter of pooling region. First,
+    # get the pooling region which shape is (C, pool_h, pool_w), and get the max
+    # value in each filter.So we use the np.max with axis (1,2) which is get the
+    # max value in both poo_h and pool_w region but not cross filter.
+    for n in range(N):
+        for n_h in range(out_H):
+            for n_w in range(out_W):
+                region = x[n, :, n_h*stride:n_h*stride+pool_h, n_w*stride:n_w*stride+pool_w]
+                out[n, :, n_h, n_w] =  np.amax(region, axis=(1, 2))
+                
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -690,7 +722,33 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param = cache
+
+    pool_h = pool_param['pool_height']
+    pool_w = pool_param['pool_width']
+    stride = pool_param['stride']
+    
+    N, C, H, W = x.shape
+    N, C, out_H, out_W = dout.shape
+
+    dx = np.zeros(x.shape)
+
+    # dpooling. Out is composed by the max value of the small size of x. The gradient
+    # of max is let the max value exist and other are set to 0.Use argmax to get the
+    # index of max value in the small region of x, and use unravel to change the value 
+    # to coordinate axis.Set the same position in dx to the value of the dout
+    # (chain rule => 1*dout).
+    for n in range(N):
+        for c in range(C):
+            for n_h in range(out_H):
+                for n_w in range(out_W):
+                    region = x[n, c, n_h*stride:n_h*stride+pool_h, n_w*stride:n_w*stride+pool_w]
+                    # we have different usage with the pooling forward because argmax can't use
+                    # tuple to axis.So we have to set the value to each channel
+                    max_index = np.argmax(region)
+                    index = np.unravel_index(max_index, (pool_h, pool_w)) 
+
+                    dx[n, c, n_h*stride+index[0], n_w*stride+index[1]] = dout[n, c, n_h, n_w]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################

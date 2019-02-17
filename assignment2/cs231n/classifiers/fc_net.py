@@ -339,6 +339,8 @@ class FullyConnectedNet(object):
                 grads['gamma'+weight_num], grads['beta'+weight_num] = dgamma, dbeta
             dout = affine_backward(dout, layer_cache[weight_num])
             
+            # let loss value contain the influence of the regularization
+            # computed the gradient and add the gradient of the regularization
             loss += 0.5 * reg * (np.sum(np.square(self.params['W'+weight_num])))
             grads['W'+weight_num], grads['b'+weight_num] = dout[dw]+reg*self.params['W'+weight_num], dout[db]
 
