@@ -786,7 +786,19 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-    pass
+    # spatial batchnorm is calculate mean and variance for each channel in all N,W,H.
+    # general batchnorm is (N, D) ,and calculated norm to (D)
+    # spatial batchnorm is (N, C, H, W) ,and calculated norm to (C)
+    N, C, H, W = x.shape
+    
+    x_trans = np.transpose(x, (0, 2, 3, 1))
+    x_reshape = np.reshape(x_trans, (-1, C))
+
+    out, cache = batchnorm_forward(x_reshape, gamma, beta, bn_param)
+
+    out = np.reshape(out, (N, H, W, C))
+    out = np.transpose(out, (0, 3, 1, 2))
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -816,7 +828,15 @@ def spatial_batchnorm_backward(dout, cache):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-    pass
+    N, C, H, W = dout.shape
+
+    dout = np.transpose(dout, (0, 2, 3, 1))
+    dout = np.reshape(dout, (-1, C))
+    
+    # the shape of dx is same as dout. So we have to transpose and reshape back
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout, cache)
+    dx = np.reshape(dx, (N, H, W, C))
+    dx = np.transpose(dx, (0, 3, 1, 2))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -852,7 +872,28 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     # the bulk of the code is similar to both train-time batch normalization  #
     # and layer normalization!                                                # 
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+
+    x = np.reshape(x, (N, G, C//G, H, W))
+
+    sample_mean = np.mean(x, axis=(2, 3, 4), keepdims=True)
+    sample_variance = np.var(x, axis=(2, 3, 4), keepdims=True)
+    standard_d = np.sqrt(sample_variance + eps)
+
+    normalization = (x-sample_mean)/standard_d
+    normalization = np.reshape(normalization, (N, C, H, W))
+    
+    out = normalization*gamma + beta
+
+    cache = {
+          'normalization':normalization,
+          'standard_d':standard_d,
+          'var':sample_variance,
+          'eps':eps,
+          'x_mean':x-sample_mean,
+          'gamma':gamma,
+          'G':G
+        }
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -878,7 +919,25 @@ def spatial_groupnorm_backward(dout, cache):
     # TODO: Implement the backward pass for spatial group normalization.      #
     # This will be extremely similar to the layer norm implementation.        #
     ###########################################################################
-    pass
+    x_mean = cache['x_mean']
+    var = cache['var']
+    gamma = cache['gamma']
+    normalization = cache['normalization']
+    standard_d = 1/cache['standard_d']
+    G = cache['G']
+
+    N, C, H, W = dout.shape
+    group = C//G*H*W
+
+    dgamma = np.sum(dout*normalization, axis=(0, 2, 3), keepdims=True)
+    dbeta = np.sum(dout, axis=(0, 2, 3), keepdims=True)
+
+    dnormalization = dout * gamma
+    dnormalization = np.reshape(dnormalization, (N, G, C//G, H, W))
+    normalization = np.reshape(normalization, (N, G, C//G, H, W))
+
+    dx = (1/group)*standard_d*(group*dnormalization-np.sum(dnormalization, axis=(2, 3, 4), keepdims=True)-(x_mean)*(standard_d**2)*np.sum(dnormalization*x_mean, axis=(2, 3, 4), keepdims=True))
+    dx = np.reshape(dx, (N, C, H, W))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
