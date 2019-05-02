@@ -140,39 +140,42 @@ class CaptioningRNN(object):
         # Note also that you are allowed to make use of functions from layers.py   #
         # in your implementation, if needed.                                       #
         ############################################################################
+        # (1) Use an affine transformation to compute the initial hidden state
+        #     from the image features. (N, H)
+        affine_out, affine_cache = affine_forward(features, W_proj, b_proj)
+        # (2) Use a word embedding layer to transform the words in captions_in
+        #     from indices to vectors. (N, T, W)
+        embed_out, embed_cache = word_embedding_forward(captions_in, W_embed)
+        # (3) Process the sequence of input word vectors and produce hidden state
+        #     vectors for all timesteps. (N, T, H)
         if self.cell_type == "rnn":
-            # (1) Use an affine transformation to compute the initial hidden state
-            #     from the image features. (N, H)
-            affine_out, affine_cache = affine_forward(features, W_proj, b_proj)
-            # (2) Use a word embedding layer to transform the words in captions_in
-            #     from indices to vectors. (N, T, W)
-            embed_out, embed_cache = word_embedding_forward(captions_in, W_embed)
-            # (3) Process the sequence of input word vectors and produce hidden state
-            #     vectors for all timesteps. (N, T, H)
             rnn_out, rnn_cache = rnn_forward(embed_out, affine_out, Wx, Wh, b)
-            # (4) Use a temporal affine transformation to compute scores over the 
-            #     vocabulary at every timestep using the hidden states. (N, T, V)
-            vocab_out, vocab_cache = temporal_affine_forward(rnn_out, W_vocab, b_vocab)
-            # (5) Use softmax to compute loss using captions_out, ignoring the points
-            #     where the output word is <NULL> using the mask above
-            loss, dx = temporal_softmax_loss(vocab_out, captions_out, mask)
+        elif self.cell_type == "lstm":
+            rnn_out, rnn_cache = lstm_forward(embed_out, affine_out, Wx, Wh, b)
+        # (4) Use a temporal affine transformation to compute scores over the 
+        #     vocabulary at every timestep using the hidden states. (N, T, V)
+        vocab_out, vocab_cache = temporal_affine_forward(rnn_out, W_vocab, b_vocab)
+        # (5) Use softmax to compute loss using captions_out, ignoring the points
+        #     where the output word is <NULL> using the mask above
+        loss, dx = temporal_softmax_loss(vocab_out, captions_out, mask)
 
-            drnn_out, dW_vocab, db_vocab = temporal_affine_backward(dx, vocab_cache)
+        drnn_out, dW_vocab, db_vocab = temporal_affine_backward(dx, vocab_cache)
+        if self.cell_type == "rnn":
             dembed_out, daffine_out, dWx, dWh, db = rnn_backward(drnn_out, rnn_cache)
-            dW_embed = word_embedding_backward(dembed_out, embed_cache)
-            dfeatures, dW_proj, db_proj = affine_backward(daffine_out, affine_cache)
+        elif self.cell_type == "lstm":
+            dembed_out, daffine_out, dWx, dWh, db = lstm_backward(drnn_out, rnn_cache)
+        dW_embed = word_embedding_backward(dembed_out, embed_cache)
+        dfeatures, dW_proj, db_proj = affine_backward(daffine_out, affine_cache)
 
-            grads["W_vocab"] = dW_vocab
-            grads["b_vocab"] = db_vocab
-            grads["Wx"] = dWx
-            grads["Wh"] = dWh
-            grads["b"] = db
-            grads["W_embed"] = dW_embed
-            grads["W_proj"] = dW_proj
-            grads["b_proj"] = db_proj
+        grads["W_vocab"] = dW_vocab
+        grads["b_vocab"] = db_vocab
+        grads["Wx"] = dWx
+        grads["Wh"] = dWh
+        grads["b"] = db
+        grads["W_embed"] = dW_embed
+        grads["W_proj"] = dW_proj
+        grads["b_proj"] = db_proj
 
-        else:
-            pass
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -243,13 +246,17 @@ class CaptioningRNN(object):
 
         prev_word = first_embed
         prev_hidden = hidden_init
+        prev_c = np.zeros_like(prev_hidden)
 
         # In testing step, we don't know the input cpations of the each rnn forward.
         # We need to feed the word step by step, always use the previous predict word
         # to feed to next rnn.So we can not use rnn_forward(), need to use rnn_step_forward()
         # in the for loop
         for l in range(1, max_length):
-            hidden_state, _ = rnn_step_forward(prev_word, prev_hidden, Wx, Wh, b)
+            if self.cell_type == "rnn":
+                hidden_state, _ = rnn_step_forward(prev_word, prev_hidden, Wx, Wh, b)
+            elif self.cell_type == "lstm":
+                hidden_state, prev_c, _ = lstm_step_forward(prev_word, prev_hidden, prev_c, Wx, Wh, b)
 
             scores, _ = affine_forward(hidden_state, W_vocab, b_vocab)
             captions[:, l] = np.argmax(scores, axis=1)
